@@ -53,7 +53,6 @@ export default async function handler(req, res) {
       //  @TODO JUSTIN map agent, wallet, and token and add to DB
 
       delete data.token;
-      const ipfsData = data;
 
       const agentMetadata = {
         name: opts.symbol, 
