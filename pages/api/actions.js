@@ -1,17 +1,20 @@
 import { decrypt } from '@/components/encryption';
-const ethers = require('ethers');
-const provider = new ethers.AlchemyProvider("maticmum", process.env.ALCHEMY_API_KEY);
+
 const pinataSDK = require('@pinata/sdk');
 const pinata = new pinataSDK(process.env.PINATA_KEY, process.env.PINATA_SECRET);
 const FULL_URL = process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3000/api/'
-const { Network, Alchemy } = require('alchemy-sdk');
+const ethers = require('ethers');
+const provider = new ethers.AlchemyProvider("maticmum", process.env.ALCHEMY_API_KEY);
+const { Alchemy, Network } = require("alchemy-sdk");
 
-const settings = {
-  apiKey: process.env.ALCHEMY_API_KEY,
-  network: Network.MATIC_MUMBAI,
+// Configures the Alchemy SDK
+const config = {
+    apiKey: process.env.ALCHEMY_API_KEY,
+    network: Network.MATIC_MUMBAI, // Replace with your network
 };
 
-const alchemy = new Alchemy(settings);
+// Creates an Alchemy object instance with the config to use for making requests
+const alchemy = new Alchemy(config);
 
 //  @TODO create a secret that is passed in from cron request
 export default async function (req, res) {
@@ -21,22 +24,36 @@ export default async function (req, res) {
 
     const encryptedData = await fetch(`${process.env.PINATA_GATEWAY}${req.body.cid}`)
     const json = await encryptedData.json();
-    const { value } = json;
 
-    const decryptedValue = decrypt(value);
-    const { privateKey, token } = JSON.parse(decryptedValue);
+    const decryptedData = decrypt(json.value);
+
+    const { privateKey, token } = JSON.parse(decryptedData);
 
     const wallet = new ethers.Wallet(privateKey, provider);
-    const owner  = wallet.address;
-    console.log({owner});
+
+    let owner  = wallet.address;
+    
     //Call the method to get the nfts owned by this address
-    const response = await alchemy.nft.getNftsForOwner(owner)
-  
+    let response = await alchemy.nft.getNftsForOwner(owner)
 
     //Logging the response to the console
-    console.log(response)
+    const agentNft = response.ownedNfts[0]
+
+    const { tokenUri } = agentNft;
+    
+    const metadata = await fetch(tokenUri.raw);
+    const metadataJson = await metadata.json();
+
     //  We need to get info about the agent
+    console.log(metadataJson);  
+
+    //  @TODO STEVE get ship and contract NFTs owned by agent TBA
+
+    //  @TODO STEVE get contract NFT metadata
+
+
     //  We need to inform AI of our agent's current situation (summarize?)
+
     //  We need to inform AI of the game options and restrictions
     //  We need AI to act
   } else {
@@ -58,6 +75,7 @@ export default async function (req, res) {
               }
             }
           }, 
+          status: 'pinned',
           pageLimit: 100, 
           pageOffset
         }

@@ -34,7 +34,7 @@ const mintNft = async (CID, walletAddress) => {
     console.log("NFT Minted, smart contract:", contractAddress)
     if (resData.onChain.status === "pending") {
       while (true) {
-        delay(10000)
+        await delay(10000)
 
         const mintStatus = await fetch(`https://staging.crossmint.com/api/2022-06-09/collections/${process.env.CROSSMINT_COLLECTION_ID}/nfts/${resData.id}`, {
           method: 'GET',
@@ -99,8 +99,6 @@ export default async function handler(req, res) {
       });
 
       if(!response.ok) {
-        console.log(response.status)
-        console.log(response.headers)
         throw new Error("Unable to create agent");
       }
 
@@ -117,7 +115,7 @@ export default async function handler(req, res) {
       
       console.log("Creating agent wallet");
       const wallet = ethers.Wallet.createRandom();
-      
+      console.log({agentWallet: wallet.address});
       const privateKey = wallet.privateKey;
       const walletAddress = wallet.address;
 
@@ -203,8 +201,7 @@ export default async function handler(req, res) {
       mintNft(contractHash, tokenBoundAccount)
 
       console.log("Done!");
-      res.json(data);
-
+      return res.json(data);
     } catch (error) {
       console.log(error);
       return res.status(500).send("Server error");
