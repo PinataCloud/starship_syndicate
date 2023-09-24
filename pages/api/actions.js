@@ -1,7 +1,17 @@
+import { decrypt } from '@/components/encryption';
+const ethers = require('ethers');
+const provider = new ethers.AlchemyProvider("maticmum", process.env.ALCHEMY_API_KEY);
 const pinataSDK = require('@pinata/sdk');
 const pinata = new pinataSDK(process.env.PINATA_KEY, process.env.PINATA_SECRET);
 const FULL_URL = process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3000/api/'
+const { Network, Alchemy } = require('alchemy-sdk');
 
+const settings = {
+  apiKey: process.env.ALCHEMY_API_KEY,
+  network: Network.MATIC_MUMBAI,
+};
+
+const alchemy = new Alchemy(settings);
 
 //  @TODO create a secret that is passed in from cron request
 export default async function (req, res) {
@@ -9,8 +19,22 @@ export default async function (req, res) {
     console.log(req.body.accountId);
     console.log(req.body.cid);
 
-    const json = await fetch(`http://starship_syndicate.mypinata.cloud/ipfs/${req.body.cid}`)
-    console.log(json);
+    const encryptedData = await fetch(`${process.env.PINATA_GATEWAY}${req.body.cid}`)
+    const json = await encryptedData.json();
+    const { value } = json;
+
+    const decryptedValue = decrypt(value);
+    const { privateKey, token } = JSON.parse(decryptedValue);
+
+    const wallet = new ethers.Wallet(privateKey, provider);
+    const owner  = wallet.address;
+    console.log({owner});
+    //Call the method to get the nfts owned by this address
+    const response = await alchemy.nft.getNftsForOwner(owner)
+  
+
+    //Logging the response to the console
+    console.log(response)
     //  We need to get info about the agent
     //  We need to inform AI of our agent's current situation (summarize?)
     //  We need to inform AI of the game options and restrictions

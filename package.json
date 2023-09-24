@@ -10,9 +10,9 @@
   },
   "dependencies": {
     "@pinata/sdk": "^2.1.0",
-    "crypto-js": "^4.1.1",
     "@tokenbound/sdk": "^0.3.7",
     "alchemy-sdk": "^2.10.1",
+    "crypto-js": "^4.1.1",
     "ethers": "^6.7.1",
     "next": "13.5.2",
     "openai": "^4.10.0",
