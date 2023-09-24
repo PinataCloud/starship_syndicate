@@ -34,7 +34,7 @@ const mintNft = async (CID, walletAddress) => {
     console.log("NFT Minted, smart contract:", contractAddress)
     if (resData.onChain.status === "pending") {
       while (true) {
-        delay(10000)
+        await delay(10000)
 
         const mintStatus = await fetch(`https://staging.crossmint.com/api/2022-06-09/collections/${process.env.CROSSMINT_COLLECTION_ID}/nfts/${resData.id}`, {
           method: 'GET',
@@ -72,6 +72,7 @@ export default async function handler(req, res) {
           },
         ],
         model: "gpt-3.5-turbo",
+        temperature: 1.5
       });      
 
       const { choices } = generatedName
@@ -114,7 +115,7 @@ export default async function handler(req, res) {
       
       console.log("Creating agent wallet");
       const wallet = ethers.Wallet.createRandom();
-      
+      console.log({agentWallet: wallet.address});
       const privateKey = wallet.privateKey;
       const walletAddress = wallet.address;
 
@@ -132,10 +133,10 @@ export default async function handler(req, res) {
       console.log("Storing encrypted data to IPFS...");
 
       const encryptedJson = {
-        value: 'U2FsdGVkX1/MmF/BuMCT0HMghF7Sb3LKt4sCMPsNMe+ZjftpGoEIDRMG7CNJGvnVCxTxeOB3qYQ+AP2V3F26teDc/77Mr5SQPFkbdRSQ7MC15gYFsz1FUI7sOsd73lfPJcvF90yNkf8MUKCzd5SN2jp+kOazu6xciaw0X0oeVV/9HK5bRm3wmui7B/wzia+rKwuoBnK4I/GPbKx+63eVFexIsANJV3gw/sITiQdOytLa/rPPi0fW4z73UsdpAbeHEQ8oyVK3IQr4CKqkgc60saJpaE9vbypvNr4FzlKEq7yHQh1FT59Zi5Jh9xsnQkdrdRRuOYCtOQYc/yragOrdFOFrb+JhHDf7mud8CfTsywTiZeTOWOqrbnzH0wg6f7KKqTXT1D2D5NrJjTxW3BApgToPiM0PtNei2ldbXdCP0fElPpYMZ6YmXmPnUSEmJK9AQmiSUPHdCNka3/tmHDy9w8yMIg4TziYIHZraMmYKTRvRmL2kQEbzqkxBzLl990zNKEwVylOJWbBhvVxxVFmniDZGCEsD/zsvQRJ/scVKEUH9JK7VnXQb73iT4mZ0nNWaA4p8qwsSHorDnR5lncXuTj0DF1aGxuLIpK3doqHLqtX3DBML8Vix2QrL8VRozkGPYZ/qFMSAJnHe787V02iVeMjPt49ojNWQ/Z2w4DxJ11VWQTpGiWCkmR+v/+KjlCKdq+wG2SwmM1sel0oCW4jeGw3TWON84MWABIOQvINb50cmM3n5OeEGRedOZ5QhQjrK0dj8HwD7TSzcw1HiWKxO6hvP7D75ZRqrOSI0WBV+oz4mkhpyPQXKZ4YAd9hiyjCy71HjvyPWtmSgU1GXSovUQA=='
+        value: encrypted
       }
 
-      await pinata.pinJSONToIPFS(encryptedJson, { pinataMetadata: { name: data.agent.symbol, keyvalues: { 'starshipAccounts': 'true', accountId: data.agent.accountId } } })
+      await pinata.pinJSONToIPFS(encryptedJson, { pinataMetadata: { name: `Encryption for: ${data.agent.symbol}`, keyvalues: { 'starshipAccounts': 'true', accountId: data.agent.accountId } } })
 
       console.log("Saved to IPFS!");
 
@@ -197,8 +198,7 @@ export default async function handler(req, res) {
       mintNft(contractHash, tokenBoundAccount)
 
       console.log("Done!");
-      res.json(data);
-
+      return res.json(data);
     } catch (error) {
       console.log(error);
       return res.status(500).send("Server error");

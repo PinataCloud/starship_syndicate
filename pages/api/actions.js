@@ -1,7 +1,20 @@
+import { decrypt } from '@/components/encryption';
+
 const pinataSDK = require('@pinata/sdk');
 const pinata = new pinataSDK(process.env.PINATA_KEY, process.env.PINATA_SECRET);
 const FULL_URL = process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3000/api/'
+const ethers = require('ethers');
+const provider = new ethers.AlchemyProvider("maticmum", process.env.ALCHEMY_API_KEY);
+const { Alchemy, Network } = require("alchemy-sdk");
 
+// Configures the Alchemy SDK
+const config = {
+    apiKey: process.env.ALCHEMY_API_KEY,
+    network: Network.MATIC_MUMBAI, // Replace with your network
+};
+
+// Creates an Alchemy object instance with the config to use for making requests
+const alchemy = new Alchemy(config);
 
 //  @TODO create a secret that is passed in from cron request
 export default async function (req, res) {
@@ -9,10 +22,38 @@ export default async function (req, res) {
     console.log(req.body.accountId);
     console.log(req.body.cid);
 
-    const json = await fetch(`http://starship_syndicate.mypinata.cloud/ipfs/${req.body.cid}`)
-    console.log(json);
+    const encryptedData = await fetch(`${process.env.PINATA_GATEWAY}${req.body.cid}`)
+    const json = await encryptedData.json();
+
+    const decryptedData = decrypt(json.value);
+
+    const { privateKey, token } = JSON.parse(decryptedData);
+
+    const wallet = new ethers.Wallet(privateKey, provider);
+
+    let owner  = wallet.address;
+    
+    //Call the method to get the nfts owned by this address
+    let response = await alchemy.nft.getNftsForOwner(owner)
+
+    //Logging the response to the console
+    const agentNft = response.ownedNfts[0]
+
+    const { tokenUri } = agentNft;
+    
+    const metadata = await fetch(tokenUri.raw);
+    const metadataJson = await metadata.json();
+
     //  We need to get info about the agent
+    console.log(metadataJson);  
+
+    //  @TODO STEVE get ship and contract NFTs owned by agent TBA
+
+    //  @TODO STEVE get contract NFT metadata
+
+
     //  We need to inform AI of our agent's current situation (summarize?)
+
     //  We need to inform AI of the game options and restrictions
     //  We need AI to act
   } else {
@@ -34,6 +75,7 @@ export default async function (req, res) {
               }
             }
           }, 
+          status: 'pinned',
           pageLimit: 100, 
           pageOffset
         }

@@ -5,7 +5,7 @@ export const encrypt = (textToEncrypt) => {
   return ciphertext;
 }
 
-export const decrypt = () => {
+export const decrypt = (ciphertext) => {
   const bytes  = Crypto.AES.decrypt(ciphertext, process.env.ENCRYPTION_SECRET);
   const originalText = bytes.toString(Crypto.enc.Utf8);
   return originalText;
