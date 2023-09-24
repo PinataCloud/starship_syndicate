@@ -73,7 +73,7 @@ export default async function handler(req, res) {
         ],
         model: "gpt-3.5-turbo",
         temperature: 1.5
-      });      
+      });
 
       const { choices } = generatedName
       const name = choices[0].message.content;
@@ -98,7 +98,7 @@ export default async function handler(req, res) {
         body: JSON.stringify(opts)
       });
 
-      if(!response.ok) {
+      if (!response.ok) {
         throw new Error("Unable to create agent");
       }
 
@@ -110,17 +110,17 @@ export default async function handler(req, res) {
       const { token } = JSON.parse(JSON.stringify(data));
 
       //  Store token and wallet private key in DB mapped to Agent ID
-      
+
       const serverWallet = new ethers.Wallet(process.env.SERVER_WALLET_PRIVATE_KEY, provider);
-      
+
       console.log("Creating agent wallet");
       const wallet = ethers.Wallet.createRandom();
-      console.log({agentWallet: wallet.address});
+      console.log({ agentWallet: wallet.address });
       const privateKey = wallet.privateKey;
       const walletAddress = wallet.address;
 
       const payloadToEncrypt = {
-        token, 
+        token,
         privateKey
       }
 
@@ -170,11 +170,12 @@ export default async function handler(req, res) {
       const contractMetadata = {
         name: `Contract: ${data.contract.id}`,
         description: `${data.contract.type} Contract`,
-        ipfs: "ipfs://Qmeat5p4PzYtNYtV7TPXf64V3T6imayG8i3eALcVjGFR6S"
+        data: data.contract,
+        image: "ipfs://Qmeat5p4PzYtNYtV7TPXf64V3T6imayG8i3eALcVjGFR6S"
       }
 
       console.log("Uploading contract NFT metadata to IPFS...");
-      
+
       const { IpfsHash: contractHash } = await pinata.pinJSONToIPFS(contractMetadata, { pinataMetadata: { name: data.contract.id, keyvalues: { 'contractAccountId': data.agent.accountId } } })
       console.log({ contractHash });
 
@@ -182,7 +183,7 @@ export default async function handler(req, res) {
 
       console.log("Minting agent NFT...")
       const agentNFT = await mintNft(agentHash, walletAddress)
-      console.log({agentNFT});
+      console.log({ agentNFT });
 
       console.log("Creating token bound account");
       //  Create TBA from Agent NFT
@@ -191,7 +192,7 @@ export default async function handler(req, res) {
         tokenId: agentNFT.onChain.tokenId,
       })
 
-      console.log({tokenBoundAccount});
+      console.log({ tokenBoundAccount });
 
       console.log("Minting ship NFT and contract NFT into token bound account...")
       //  Mint Ship NFT into Agent TBA
