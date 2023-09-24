@@ -72,23 +72,26 @@ export default async function handler(req, res) {
         name: opts.symbol,
         description: `Space cowboy in the ${opts.faction} faction`,
         faction: data.faction,
-        data: data.agent
+        data: data.agent,
+        image: "ipfs://QmXGQn7hGRZXrXMopHYyosTFLzRUbXrFY1g8Svu8cZuUea"
       }
 
       const { IpfsHash: agentHash } = await pinata.pinJSONToIPFS(agentMetadata, { pinataMetadata: { name: data.agent.symbol, keyvalues: { 'accountId': data.agent.accountId } } })
       console.log({ agentHash });
 
       const shipMetadata = {
-        name: data.ship.symbol,
-        data: data.ship
+        name: `ship: ${data.ship.symbol}`,
+        data: data.ship,
+        image: "ipfs://QmXGQn7hGRZXrXMopHYyosTFLzRUbXrFY1g8Svu8cZuUea"
       }
 
       const { IpfsHash: shipHash } = await pinata.pinJSONToIPFS(shipMetadata, { pinataMetadata: { name: data.ship.symbol, keyvalues: { 'shipAccountId': data.agent.accountId } } })
       console.log({ shipHash });
 
       const contractMetadata = {
-        name: `${data.contract.id}`,
-        description: `${data.contract.type} Contract`
+        name: `Contract: ${data.contract.id}`,
+        description: `${data.contract.type} Contract`,
+        ipfs: "ipfs://Qmeat5p4PzYtNYtV7TPXf64V3T6imayG8i3eALcVjGFR6S"
       }
 
       const { IpfsHash: contractHash } = await pinata.pinJSONToIPFS(contractMetadata, { pinataMetadata: { name: data.contract.id, keyvalues: { 'contractAccountId': data.agent.accountId } } })
