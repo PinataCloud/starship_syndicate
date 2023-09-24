@@ -28,8 +28,96 @@ const config = {
 // Creates an Alchemy object instance with the config to use for making requests
 const alchemy = new Alchemy(config);
 
+const actionFunctions = async (messages) => {
+  const actionResponse = await openai.chat.completions.create({
+    messages: messages,
+    functions: [
+      {
+        name: "accept_contract",
+        description: "Accept the pending contract for the agent",
+        parameters: {
+          type: "object",
+          properties: {
+            token: {
+              type: "string",
+              description: "the token for authenticating the request",
+            },
+            contractId: {
+              type: "string",
+              description: "The contract identifier"
+            }
+          },
+          required: ["token"],
+        },
+      },
+      /* {
+        name: "scan_waypoints",
+        description: "Scan waypoints near the ship's current location",
+        parameters: {
+          type: "object",
+          properties: {
+            token: {
+              type: "string",
+              description: "the token for authenticating the request",
+            },
+            shipSymbol: {
+              type: "string",
+              description: "The ship's call sign/symbol",
+            }
+          },
+          required: ["token"],
+        },
+      }, */
+      /* {
+        name: "purchase_ship",
+        description: "Purchases a ship at a given waypoint",
+        parameters: {
+          type: "object",
+          properties: {
+            token: {
+              type: "string",
+              description: "the token for authenticating the request",
+            },
+            waypoint: {
+              type: "string",
+              description:
+                "The waypoint location for the ship to be purchased",
+            },
+          },
+          required: ["token"],
+        },
+      }, */
+      {
+        name: "orbit_ship",
+        description: "Send ship into orbit.",
+        parameters: {
+          type: "object",
+          properties: {
+            token: {
+              type: "string",
+              description: "the token for authenticating the request",
+            },
+            shipSymbol: {
+              type: "string",
+              description:
+                "The ship's call sign/symbol",
+            },
+          },
+          required: ["token"],
+        },
+      },
+    ],
+    model: "gpt-3.5-turbo",
+    temperature: 1,
+    function_call: "auto"
+  });
+  return actionResponse;
+}
+
+
+
 //  @TODO create a secret that is passed in from cron request
-export default async function (req, res) {
+export default async function(req, res) {
   if (req.method === "POST") {
     console.log({ accountId: req.body.accountId });
     console.log({ CID: req.body.cid });
@@ -127,110 +215,28 @@ export default async function (req, res) {
     const messages = [
       {
         role: "user",
-        content: `You are a space cowboy, referred to as an agent in the game. This is a summary of your current situation. Please execute the next action as the agent based on the following summary of the situation: \n
-        ${summary}`
+        content: `You are a space cowboy, referred to as an agent in the game. This is a summary of your current situation. You must execute the next action as the agent by calling either accept_contract or orbit_ship`
       },
     ]
 
-    const actionResponse = await openai.chat.completions.create({
-      messages: messages,
-      functions: [
-        {
-          name: "accept_contract",
-          description: "Accept the pending contract for the agent",
-          parameters: {
-            type: "object",
-            properties: {
-              token: {
-                type: "string",
-                description: "the token for authenticating the request",
-              },
-              contractId: {
-                type: "string", 
-                description: "The contract identifier"
-              }
-            },
-            required: ["token"],
-          },
-        },
-        {
-          name: "scan_waypoints",
-          description: "Scan waypoints near the ship's current location",
-          parameters: {
-            type: "object",
-            properties: {
-              token: {
-                type: "string",
-                description: "the token for authenticating the request",
-              },
-              shipSymbol: {
-                type: "string", 
-                description: "The ship's call sign/symbol",
-              }
-            },
-            required: ["token"],
-          },
-        },
-        {
-          name: "purchase_ship",
-          description: "Purchases a ship at a given waypoint",
-          parameters: {
-            type: "object",
-            properties: {
-              token: {
-                type: "string",
-                description: "the token for authenticating the request",
-              },
-              waypoint: {
-                type: "string",
-                description:
-                  "The waypoint location for the ship to be purchased",
-              },
-            },
-            required: ["token"],
-          },
-        },
-        {
-          name: "orbit_ship",
-          description: "Send ship into orbit.",
-          parameters: {
-            type: "object",
-            properties: {
-              token: {
-                type: "string",
-                description: "the token for authenticating the request",
-              },
-              shipSymbol: {
-                type: "string",
-                description:
-                  "The ship's call sign/symbol",
-              },
-            },
-            required: ["token"],
-          },
-        },
-      ],
-      model: "gpt-3.5-turbo",
-      temperature: 1,
-      function_call: "auto"
-    });
 
+    const actionResponse = await actionFunctions(messages)
     const responseMessage = actionResponse.choices[0].message;
     console.log({ responseMessage });
 
     if (responseMessage.function_call) {
       const availableFunctions = {
         accept_contract: acceptContract,
-        scan_waypoints: scanWaypoints, 
+        scan_waypoints: scanWaypoints,
         purchase_ship: purchaseShip,
         orbit_ship: orbitShip
       }; // only one function in this example, but you can have multiple
-      const functionName = responseMessage.function_call.name;      
+      const functionName = responseMessage.function_call.name;
       const functionToCall = availableFunctions[functionName];
       // const functionArgs = JSON.parse(responseMessage.function_call.arguments);
       const secondArg = (functionName === "scan_waypoints") || (functionName === 'orbit_ship') ? shipData.symbol : functionName === "accept_contract" ? contractData.id : ""
       const functionResponse = functionToCall(
-        token, 
+        token,
         secondArg
       );
 
