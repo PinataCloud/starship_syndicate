@@ -1,5 +1,7 @@
+import { TokenboundClient } from "@tokenbound/sdk";
 const pinataSDK = require('@pinata/sdk');
 const pinata = new pinataSDK(process.env.PINATA_KEY, process.env.PINATA_SECRET);
+const ethers = require('ethers');
 
 export const acceptContract = async (token, contractId) => {
   try {
@@ -14,23 +16,21 @@ export const acceptContract = async (token, contractId) => {
       },
     };
     const response = await fetch(url, options);
-    const data = await response.json();
+    const {data} = await response.json();
     console.log("Accepted contract: ", data);
     //  Upload contract metadata to IPFS
     const contractMetadata = {
       name: `Contract: ${data.contract.id}`,
       description: `${data.contract.type} Contract`,
-      data: data.contract,
+      data: data,
       image: "ipfs://Qmeat5p4PzYtNYtV7TPXf64V3T6imayG8i3eALcVjGFR6S"
     }
 
     console.log("Uploading contract NFT metadata to IPFS...");
     const { IpfsHash: contractHash } = await pinata.pinJSONToIPFS(contractMetadata, { pinataMetadata: { name: data.contract.id, keyvalues: { 'contractAccountId': data.agent.accountId } } })
-    console.log({ contractHash });
-    //  @TODO STEVE: Burn original contract NFT
-    //  @TODO STEVE: Mint new contract NFT into TBA
+    console.log({ contractMetadata });
 
-    return data;
+    return contractHash;
   } catch (error) {
     console.log(error);
     throw error;

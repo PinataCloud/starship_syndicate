@@ -1,7 +1,12 @@
 import { decrypt } from "@/components/encryption";
 import OpenAI from "openai";
 import { TokenboundClient } from "@tokenbound/sdk";
-import { acceptContract, orbitShip, purchaseShip, scanWaypoints } from "@/components/spaceTraderFunctions";
+import {
+  acceptContract,
+  orbitShip,
+  purchaseShip,
+  scanWaypoints,
+} from "@/components/spaceTraderFunctions";
 
 const openai = new OpenAI({
   apiKey: process.env.OPEN_AI_KEY,
@@ -28,6 +33,51 @@ const config = {
 // Creates an Alchemy object instance with the config to use for making requests
 const alchemy = new Alchemy(config);
 
+const mintNft = async (CID, walletAddress) => {
+  try {
+    const data = JSON.stringify({
+      recipient: `polygon:${walletAddress}`,
+      metadata: process.env.PINATA_GATEWAY + CID
+    })
+    const res = await fetch(`https://staging.crossmint.com/api/2022-06-09/collections/${process.env.CROSSMINT_COLLECTION_ID}/nfts`, {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        'x-client-secret': `${process.env.CROSSMINT_CLIENT_SECRET}`,
+        'x-project-id': `${process.env.CROSSMINT_PROJECT_ID}`
+      },
+      body: data
+    })
+    const resData = await res.json()
+    const contractAddress = resData.onChain.contractAddress
+    console.log("NFT Minted, smart contract:", contractAddress)
+    if (resData.onChain.status === "pending") {
+      while (true) {
+        await delay(10000)
+
+        const mintStatus = await fetch(`https://staging.crossmint.com/api/2022-06-09/collections/${process.env.CROSSMINT_COLLECTION_ID}/nfts/${resData.id}`, {
+          method: 'GET',
+          headers: {
+            accept: 'application/json',
+            'x-client-secret': `${process.env.CROSSMINT_CLIENT_SECRET}`,
+            'x-project-id': `${process.env.CROSSMINT_PROJECT_ID}`
+          }
+        })
+
+        const mintStatusJson = await mintStatus.json()
+
+        if (mintStatusJson.onChain.status === "success") {
+          console.log(mintStatusJson)
+          return mintStatusJson
+        }
+      }
+    }
+  } catch (error) {
+    console.log(error)
+  }
+}
+
 const actionFunctions = async (messages) => {
   const actionResponse = await openai.chat.completions.create({
     messages: messages,
@@ -44,8 +94,8 @@ const actionFunctions = async (messages) => {
             },
             contractId: {
               type: "string",
-              description: "The contract identifier"
-            }
+              description: "The contract identifier",
+            },
           },
           required: ["token"],
         },
@@ -99,8 +149,7 @@ const actionFunctions = async (messages) => {
             },
             shipSymbol: {
               type: "string",
-              description:
-                "The ship's call sign/symbol",
+              description: "The ship's call sign/symbol",
             },
           },
           required: ["token"],
@@ -109,15 +158,13 @@ const actionFunctions = async (messages) => {
     ],
     model: "gpt-3.5-turbo",
     temperature: 1,
-    function_call: "auto"
+    function_call: "auto",
   });
   return actionResponse;
-}
-
-
+};
 
 //  @TODO create a secret that is passed in from cron request
-export default async function(req, res) {
+export default async function (req, res) {
   if (req.method === "POST") {
     console.log({ accountId: req.body.accountId });
     console.log({ CID: req.body.cid });
@@ -179,6 +226,7 @@ export default async function(req, res) {
       }
     });
 
+    
     const contractMetadataRaw = await fetch(contractNft.tokenUri.raw);
     const contractMetadataJson = await contractMetadataRaw.json();
     const contractData = contractMetadataJson.data;
@@ -215,47 +263,67 @@ export default async function(req, res) {
     const messages = [
       {
         role: "user",
-        content: `You are a space cowboy, referred to as an agent in the game. This is a summary of your current situation. You must execute the next action as the agent by calling either accept_contract or orbit_ship`
+        content: `You are a space cowboy, referred to as an agent in the game. This is a summary of your current situation. You must execute the next action as the agent by calling either accept_contract or orbit_ship`,
       },
-    ]
+    ];
 
-
-    const actionResponse = await actionFunctions(messages)
-    const responseMessage = actionResponse.choices[0].message;
+    let actionResponse = await actionFunctions(messages);
+    let responseMessage = actionResponse.choices[0].message;
+    console.log("Initial try at function call...");
     console.log({ responseMessage });
 
-    if (responseMessage.function_call) {
-      const availableFunctions = {
-        accept_contract: acceptContract,
-        scan_waypoints: scanWaypoints,
-        purchase_ship: purchaseShip,
-        orbit_ship: orbitShip
-      }; // only one function in this example, but you can have multiple
-      const functionName = responseMessage.function_call.name;
-      const functionToCall = availableFunctions[functionName];
-      // const functionArgs = JSON.parse(responseMessage.function_call.arguments);
-      const secondArg = (functionName === "scan_waypoints") || (functionName === 'orbit_ship') ? shipData.symbol : functionName === "accept_contract" ? contractData.id : ""
-      const functionResponse = functionToCall(
-        token,
-        secondArg
-      );
+    let retries = 0;
 
-      // Step 4: send the info on the function call and function response to GPT
-      messages.push(responseMessage); // extend conversation with assistant's reply
-      messages.push({
-        role: "function",
-        name: functionName,
-        content: functionResponse,
-      }); // extend conversation with function response
-      const secondResponse = await openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
-        messages: messages,
-      }); // get a new response from GPT where it can see the function response
-      console.log(JSON.stringify(secondResponse));
-    } else {
-      console.log("No function called");
-      return;
+    while (!responseMessage.function_call && retries < 5) {
+      console.log("Looping until we have a good response with a function call...");
+      actionResponse = await actionFunctions(messages);
+      responseMessage = actionResponse.choices[0].message;
+      retries++;
     }
+
+      if (responseMessage.function_call) {
+        const availableFunctions = {
+          accept_contract: acceptContract,
+          // scan_waypoints: scanWaypoints,
+          // purchase_ship: purchaseShip,
+          orbit_ship: orbitShip,
+        }; 
+        const functionName = responseMessage.function_call.name;
+        const functionToCall = availableFunctions[functionName];
+        // const functionArgs = JSON.parse(responseMessage.function_call.arguments);
+        const secondArg =
+          functionName === "scan_waypoints" || functionName === "orbit_ship"
+            ? shipData.symbol
+            : functionName === "accept_contract"
+            ? contractData.id
+            : "";
+        const functionResponse = await functionToCall(token, secondArg);
+        console.log("Response from function call: ");
+        console.log(functionResponse);
+
+        //  Reconstruct Wallet
+        const serverWallet = new ethers.Wallet(process.env.SERVER_WALLET_PRIVATE_KEY, provider);
+
+        const tokenboundClient = new TokenboundClient({ signer: serverWallet, chainId: 80001 })
+
+        console.log("burning contract NFT...");
+        //  Burn existing Contract NFT
+        //  @TODO how the heck to we do this is the NPC wallet has no funds?
+        //  @TODO maybe we transfer funds from server wallet?
+        
+
+        //  Mint new contract NFT 
+        console.log("Minting new contract nft")
+        mintNft(contractHash, agentTBA);
+
+        console.log("Minted new Contract NFT");
+
+
+      } else {
+        console.log("No function called");
+        return;
+      }
+
     res.send("Done");
     //  We need to inform AI of the game options and restrictions
     //  We need AI to act
